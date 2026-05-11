@@ -3,7 +3,7 @@
 # - 2-byte SNES map entries
 # - palette + flip + priority support
 # - block brush + ghost preview
-# Locked: 1th May 2026
+# Locked: 11th May 2026
 # By Michael J Archer
 
 import sys
