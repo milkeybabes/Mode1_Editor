@@ -3,7 +3,7 @@
 # - 2-byte SNES map entries
 # - palette + flip + priority support
 # - block brush + ghost preview
-# Locked: 28th April 2026
+# Locked: 1th May 2026
 # By Michael J Archer
 
 import sys
@@ -2444,7 +2444,7 @@ class BGPreviewWindow(QWidget):
 
         cell = p.metatile_pixel_size
         img = QImage(map_width * cell, map_height * cell, QImage.Format_ARGB32)
-        
+
         if transparent_zero:
             img.fill(0x00000000)
         else:
@@ -2452,24 +2452,33 @@ class BGPreviewWindow(QWidget):
 
         painter = QPainter(img)
 
-        for my in range(map_height):
-            if (my & 7) == 0:
+        for display_y in range(map_height):
+            if (display_y & 7) == 0:
                 QApplication.processEvents()
+
+            # Project maps follow project map_direction
+            if p.map_direction == "bottom_top":
+                data_y = (map_height - 1) - display_y
+            else:
+                data_y = display_y
+
             for mx in range(map_width):
                 entry = get_map_entry(
                     map_data,
                     map_width,
                     mx,
-                    my,
+                    data_y,
                     p.map_index_mask,
                     p.map_h_flip_mask,
                     p.map_v_flip_mask,
                 )
+
                 mt_img = p.render_metatile_image_from_map_entry_argb(
                     entry["value"],
                     transparent_zero
                 )
-                painter.drawImage(mx * cell, my * cell, mt_img)
+
+                painter.drawImage(mx * cell, display_y * cell, mt_img)
 
         painter.end()
         return img
