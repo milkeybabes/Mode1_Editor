@@ -164,6 +164,7 @@ MAP_HELP_TEXT = """
 <table>
 <tr><td>P</td><td>&nbsp;&nbsp;Toggle picker</td></tr>
 <tr><td>- / +</td><td>&nbsp;&nbsp;Previous / next metatile</td></tr>
+<tr><td>O</td><td>&nbsp;&nbsp;Toggle SNES screen overlay</td></tr>
 <tr><td>X / Y</td><td>&nbsp;&nbsp;Flip hover tile or brush</td></tr>
 <tr><td>Ctrl+Z / U</td><td>&nbsp;&nbsp;Undo</td></tr>
 <tr><td>E</td><td>&nbsp;&nbsp;Switch to metatile editor</td></tr>
@@ -212,6 +213,7 @@ PREVIEW_HELP_TEXT = """
 <tr><td>4</td><td>&nbsp;&nbsp;Move BG1, with BG2 parallax-linked</td></tr>
 <tr><td>S</td><td>&nbsp;&nbsp;Swap BG priority</td></tr>
 <tr><td>R</td><td>&nbsp;&nbsp;Reset selected BG position</td></tr>
+<tr><td>O</td><td>&nbsp;&nbsp;Toggle SNES screen overlay</td></tr>
 <tr><td>Arrow keys</td><td>&nbsp;&nbsp;Move selected BG layer(s)</td></tr>
 <tr><td>H</td><td>&nbsp;&nbsp;Show this help</td></tr>
 </table>
@@ -781,8 +783,12 @@ class MetatilePicker(QLabel):
             self.build()
             self.parent.update_status()
 
-            if hasattr(self.parent, "picker_window"):
-                self.parent.picker_window.refresh_status()
+        if (
+            hasattr(self.parent, "picker_window")
+            and self.parent.picker_window is not None
+            and self.parent.picker_window.isVisible()
+        ):
+            self.parent.picker_window.refresh_status()
 
 class TileViewer(QLabel):
     def __init__(self, tiles, palette, parent):
@@ -1021,8 +1027,11 @@ class PaletteView(QLabel):
                     self.parent.mark_metatile_dirty(mt_index)
                     self.parent.metatile_view.build()
 
-                    if hasattr(self.parent, "picker_window"):
-                        self.parent.picker_window.picker.build()
+                    if (
+                        hasattr(self.parent, "picker_window")
+                        and self.parent.picker_window is not None
+                        and self.parent.picker_window.isVisible()
+                    ):
                         self.parent.picker_window.refresh_status()
 
             # Refresh UI
@@ -1148,9 +1157,14 @@ class PaletteControls(QWidget):
 
         if self.parent.editor_mode == "metatile":
             self.parent.metatile_view.build()
-            if hasattr(self.parent, "picker_window"):
+            if (
+                hasattr(self.parent, "picker_window")
+                and self.parent.picker_window is not None
+                and self.parent.picker_window.isVisible()
+            ):
                 self.parent.picker_window.picker.build()
                 self.parent.picker_window.refresh_status()
+    
         else:
             self.parent.map_view.rebuild_all()
             self.parent.map_view_dirty_full = False
@@ -1234,7 +1248,11 @@ class TileOps(QWidget):
             self.parent.map_view_dirty_metatiles.clear()
         else:
             self.parent.metatile_view.build()
-            if hasattr(self.parent, "picker_window"):
+            if (
+                hasattr(self.parent, "picker_window")
+                and self.parent.picker_window is not None
+                and self.parent.picker_window.isVisible()
+            ):
                 self.parent.picker_window.picker.build()
                 self.parent.picker_window.refresh_status()
 
@@ -1283,6 +1301,7 @@ class MapView(QLabel):
         cell = self.parent.metatile_pixel_size
         self.grid_modes = [0, cell, cell * 2]
         self.grid_index = 0
+        self.map_screen_overlay = False
         self.panning = False
         self.pan_start = None
         self.h_scroll_start = 0
@@ -1619,7 +1638,11 @@ class MapView(QLabel):
                     self.parent.palette_view.build()
                     self.parent.palette_controls.refresh_from_selected_colour()
  
-                if hasattr(self.parent, "picker_window"):
+                if (
+                    hasattr(self.parent, "picker_window")
+                    and self.parent.picker_window is not None
+                    and self.parent.picker_window.isVisible()
+                ):
                     self.parent.picker_window.picker.build()
                     self.parent.picker_window.refresh_status()
 
@@ -1705,7 +1728,14 @@ class MapView(QLabel):
         painter.setRenderHint(QPainter.SmoothPixmapTransform, False)
         painter.scale(self.scale, self.scale)
         painter.drawImage(0, 0, self.base_image)
-
+        
+        if getattr(self.parent, "map_screen_overlay", False):
+            self.draw_screen_overlay(
+                painter,
+                self.parent.map_screen_overlay_x,
+                self.parent.map_screen_overlay_y
+            )
+            
         grid_size = self.grid_modes[self.grid_index]
         if grid_size > 0:
             pen = QPen(QColor(255, 255, 255, 80))
@@ -1870,6 +1900,34 @@ class MapView(QLabel):
             event.accept()
             return
 
+        if event.key() == Qt.Key_O:
+            current = getattr(self.parent, "map_screen_overlay", False)
+
+            if not current:
+                cx = getattr(self.parent, "hover_x", 0) * self.parent.metatile_pixel_size
+                cy = getattr(self.parent, "hover_y", 0) * self.parent.metatile_pixel_size
+
+                screen_w = 256
+                screen_h = 224
+
+                map_w_px = self.parent.map_width * self.parent.metatile_pixel_size
+                map_h_px = self.parent.map_height * self.parent.metatile_pixel_size
+
+                x = cx - (screen_w // 2)
+                y = cy - (screen_h // 2)
+
+                x = max(0, min(x, map_w_px - screen_w))
+                y = max(0, min(y, map_h_px - screen_h))
+
+                self.parent.map_screen_overlay_x = x
+                self.parent.map_screen_overlay_y = y
+
+            self.parent.map_screen_overlay = not current
+            self.update()
+            self.parent.update_status()
+            event.accept()
+            return
+      
         if event.key() == Qt.Key_U:
             self.parent.undo_last_action()
             event.accept()
@@ -1965,6 +2023,30 @@ class MapView(QLabel):
   
     def show_help(self):
         QMessageBox.information(self, "Help", HELP_TEXT)
+
+    def draw_screen_overlay(self, painter, x, y):
+        w = 256
+        h = 224
+        corner = 16
+
+        right = x + w - 1
+        bottom = y + h - 1
+
+        pen = QPen(QColor(255, 255, 255, 220))
+        pen.setWidthF(0)
+        painter.setPen(pen)
+
+        painter.drawLine(x, y, x + corner, y)
+        painter.drawLine(x, y, x, y + corner)
+
+        painter.drawLine(right, y, right - corner, y)
+        painter.drawLine(right, y, right, y + corner)
+
+        painter.drawLine(x, bottom, x + corner, bottom)
+        painter.drawLine(x, bottom, x, bottom - corner)
+
+        painter.drawLine(right, bottom, right - corner, bottom)
+        painter.drawLine(right, bottom, right, bottom - corner)
  
 class MetatilePickerWindow(QWidget):
     def __init__(self, parent):
@@ -2179,6 +2261,14 @@ class BGPreviewCanvas(QLabel):
 
     def rebuild(self):
         img = self.build_combined_image()
+        if self.parent.screen_overlay:
+            painter = QPainter(img)
+            self.draw_screen_overlay(
+            painter,
+            self.parent.screen_overlay_x,
+            self.parent.screen_overlay_y
+        )
+            painter.end()
         self.setPixmap(QPixmap.fromImage(img))
         self.resize(img.size())
         self.parent.update_status_text()
@@ -2194,6 +2284,8 @@ class BGPreviewCanvas(QLabel):
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
+        self.hover_x = int(event.position().x())
+        self.hover_y = int(event.position().y())
         if self.dragging:
             current = event.globalPosition().toPoint()
             delta = current - self.drag_start
@@ -2237,6 +2329,33 @@ class BGPreviewCanvas(QLabel):
             event.accept()
             return
 
+        if event.key() == Qt.Key_O:
+            current = getattr(self.parent, "screen_overlay", False)
+
+            if not current:
+                cx = getattr(self, "hover_x", self.width() // 2)
+                cy = getattr(self, "hover_y", self.height() // 2)
+
+                screen_w = 256
+                screen_h = 224
+
+                view_w = self.width()
+                view_h = self.height()
+
+                x = cx - (screen_w // 2)
+                y = cy - (screen_h // 2)
+
+                x = max(0, min(x, view_w - screen_w))
+                y = max(0, min(y, view_h - screen_h))
+
+                self.parent.screen_overlay_x = x
+                self.parent.screen_overlay_y = y
+
+            self.parent.screen_overlay = not current
+            self.rebuild()
+            event.accept()
+            return
+            
         if key == Qt.Key_1:
             self.parent.move_mode = 1
             self.parent.update_status_text()
@@ -2298,12 +2417,39 @@ class BGPreviewCanvas(QLabel):
             return
 
         super().keyPressEvent(event)
+
+    def draw_screen_overlay(self, painter, x, y):
+        # SNES visible area guide: 256x224 pixels
+        w = 256
+        h = 224
+        corner = 16
+
+        right = x + w - 1
+        bottom = y + h - 1
+
+        pen = QPen(QColor(255, 255, 255, 240))
+        pen.setWidthF(1.5)
+        painter.setPen(pen)
+
+        painter.drawLine(x, y, x + corner, y)
+        painter.drawLine(x, y, x, y + corner)
+
+        painter.drawLine(right, y, right - corner, y)
+        painter.drawLine(right, y, right, y + corner)
+
+        painter.drawLine(x, bottom, x + corner, bottom)
+        painter.drawLine(x, bottom, x, bottom - corner)
+
+        painter.drawLine(right, bottom, right - corner, bottom)
+        painter.drawLine(right, bottom, right, bottom - corner)
     
 class BGPreviewWindow(QWidget):
     def __init__(self, editor):
         super().__init__()
         self.editor = editor
-
+        self.screen_overlay = False
+        self.screen_overlay_x = 0
+        self.screen_overlay_y = 0
         mode = getattr(editor, "preview_bg2_mode", "next_map")
 
         has_next_map = (
@@ -2802,6 +2948,30 @@ class BGPreviewWindow(QWidget):
             ry = max(1, math.ceil(needed_h / img.height()) + 2)
 
         return rx, ry
+
+
+        # SNES visible area guide: 256x224 pixels
+        x = 0
+        y = 0
+        w = 256
+        h = 224
+        corner = 16
+
+        pen = QPen(QColor(255, 255, 255, 180))
+        pen.setWidthF(0)
+        painter.setPen(pen)
+
+        painter.drawLine(x, y, x + corner, y)
+        painter.drawLine(x, y, x, y + corner)
+
+        painter.drawLine(x + w, y, x + w - corner, y)
+        painter.drawLine(x + w, y, x + w, y + corner)
+
+        painter.drawLine(x, y + h, x + corner, y + h)
+        painter.drawLine(x, y + h, x, y + h - corner)
+
+        painter.drawLine(x + w, y + h, x + w - corner, y + h)
+        painter.drawLine(x + w, y + h, x + w, y + h - corner)
     
 class Editor(QWidget):
     def __init__(self, tiles_path, palette_path, map_paths, widths, heights, metatile_path=None, map_direction="top_bottom", metatile_size=2, map_index_mask=0x03FF, map_h_flip_bit=14, map_v_flip_bit=15):       
@@ -2812,8 +2982,10 @@ class Editor(QWidget):
         self.debug_offsets = args.debug
 
         self.bg_preview_active = False
-        
-        self.setWindowIcon(QIcon("mode1_editor.ico"))
+        self.map_screen_overlay = False      
+        self.map_screen_overlay_x = 0
+        self.map_screen_overlay_y = 0
+        #self.setWindowIcon(QIcon("mode1_editor.ico"))
 
         self.map_paths = map_paths
         self.map_widths = widths
@@ -3655,7 +3827,11 @@ class Editor(QWidget):
         self.setWindowTitle(name)
  
     def closeEvent(self, event):
-        if hasattr(self, "picker_window") and self.picker_window.isVisible():
+        if (
+            hasattr(self, "picker_window")
+            and self.picker_window is not None
+            and self.picker_window.isVisible()
+        ):
             self.picker_window.close()
             
         if self.modified_map or self.modified_chr or self.modified_pal:
@@ -4113,7 +4289,11 @@ class Editor(QWidget):
             self.open_picker_btn.hide()
             self.open_picker_btn.setEnabled(False)
 
-            if hasattr(self, "picker_window") and self.picker_window.isVisible():
+            if (
+                hasattr(self, "picker_window")
+                and self.picker_window is not None
+                and self.picker_window.isVisible()
+            ):
                 self.picker_window.close()
 
             if self.direct_tilemap_mode:
@@ -4287,7 +4467,11 @@ class Editor(QWidget):
         self.palette_controls.refresh_from_selected_colour()
         self.metatile_view.build()
 
-        if hasattr(self, "picker_window"):
+        if (
+            hasattr(self, "picker_window")
+            and self.picker_window is not None
+            and self.picker_window.isVisible()
+        ):
             self.picker_window.picker.build()
             self.picker_window.refresh_status()
 
@@ -4317,7 +4501,11 @@ class Editor(QWidget):
         if hasattr(self, "metatile_view"):
             self.metatile_view.build()
 
-        if hasattr(self, "picker_window"):
+        if (
+            hasattr(self, "picker_window")
+            and self.picker_window is not None
+            and self.picker_window.isVisible()
+        ):
             self.picker_window.picker.build()
             self.picker_window.refresh_status()
 
@@ -4346,7 +4534,11 @@ class Editor(QWidget):
         if hasattr(self, "metatile_view"):
             self.metatile_view.build()
 
-        if hasattr(self, "picker_window"):
+        if (
+            hasattr(self, "picker_window")
+            and self.picker_window is not None
+            and self.picker_window.isVisible()
+        ):
             self.picker_window.picker.build()
             self.picker_window.refresh_status()
 
@@ -4451,7 +4643,11 @@ class Editor(QWidget):
         self.brush_h = 1
         self.brush_tiles = [self.selected_metatile]
 
-        if hasattr(self, "picker_window") and self.picker_window.isVisible():
+        if (
+            hasattr(self, "picker_window")
+            and self.picker_window is not None
+            and self.picker_window.isVisible()
+        ):
             self.picker_window.picker.build()
             self.picker_window.refresh_status()
 
@@ -4826,7 +5022,11 @@ class TileEditor(QLabel):
                 self.parent.map_view.redraw()
             else:
                 self.parent.metatile_view.build()
-                if hasattr(self.parent, "picker_window"):
+                if (
+                    hasattr(self.parent, "picker_window")
+                    and self.parent.picker_window is not None
+                    and self.parent.picker_window.isVisible()
+                ):
                     self.parent.picker_window.picker.build()
                     self.parent.picker_window.refresh_status()
 
@@ -5095,10 +5295,14 @@ class MetatileView(QLabel):
             p.refresh_map_tile_info()
             p.update_status()
 
-            if hasattr(p, "picker_window"):
+            if (
+                hasattr(p, "picker_window")
+                and p.picker_window is not None
+                and p.picker_window.isVisible()
+            ):
                 p.picker_window.picker.build()
                 p.picker_window.refresh_status()
-
+                
     def keyPressEvent(self, event):
         p = self.parent
 
