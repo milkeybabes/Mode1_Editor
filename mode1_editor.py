@@ -1974,6 +1974,7 @@ class MetatilePickerWindow(QWidget):
         ms = self.parent.metatile_size
         self.setWindowTitle(f"Metatile Picker ({ms}x{ms} / {px}x{px}px)")
         self.setWindowFlags(Qt.Tool | Qt.WindowStaysOnTopHint)
+        self.setAttribute(Qt.WA_DeleteOnClose, True)
 
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(6, 6, 6, 6)
@@ -2098,9 +2099,13 @@ class MetatilePickerWindow(QWidget):
             self.refresh_status()
 
     def closeEvent(self, event):
-        super().closeEvent(event)
+        if hasattr(self.parent, "picker_window"):
+            self.parent.picker_window = None
+
         if hasattr(self.parent, "update_picker_button_state"):
-            self.parent.update_picker_button_state()
+            QTimer.singleShot(0, self.parent.update_picker_button_state)
+
+        super().closeEvent(event)
 
     def keyPressEvent(self, event):
         if event.modifiers() == Qt.NoModifier:
@@ -2396,7 +2401,8 @@ class BGPreviewWindow(QWidget):
 
         self.setWindowTitle("BG Preview")
         self.setWindowFlags(Qt.Tool | Qt.WindowStaysOnTopHint)
-        
+        self.setAttribute(Qt.WA_DeleteOnClose, True)
+
         #self.resize(1000, 700)
         view_w = 1000
         content_h = max(
@@ -2431,6 +2437,17 @@ class BGPreviewWindow(QWidget):
         #self.canvas.rebuild()
         #self.canvas.setFocus()
         QTimer.singleShot(0, self.initial_rebuild)
+
+    def closeEvent(self, event):
+        self.editor.bg_preview_active = False
+
+        if hasattr(self.editor, "bg_preview_window"):
+            self.editor.bg_preview_window = None
+
+        if hasattr(self.editor, "update_preview_button_state"):
+            QTimer.singleShot(0, self.editor.update_preview_button_state)
+
+        super().closeEvent(event)
         
     def initial_rebuild(self):
         self.canvas.rebuild()
@@ -4149,7 +4166,11 @@ class Editor(QWidget):
         return self.metatile_page != old_page
          
     def update_picker_button_state(self):
-        picker_open = hasattr(self, "picker_window") and self.picker_window.isVisible()
+        picker_open = (
+            hasattr(self, "picker_window")
+            and self.picker_window is not None
+            and self.picker_window.isVisible()
+        )
 
         if picker_open:
             self.open_picker_btn.setStyleSheet(
@@ -4157,6 +4178,22 @@ class Editor(QWidget):
             )
         else:
             self.open_picker_btn.setStyleSheet(
+                "padding: 6px 10px; color: #bbb;"
+            )
+
+    def update_preview_button_state(self):
+        preview_open = (
+            hasattr(self, "bg_preview_window")
+            and self.bg_preview_window is not None
+            and self.bg_preview_window.isVisible()
+        )
+
+        if preview_open:
+            self.preview_btn.setStyleSheet(
+                "padding: 6px 10px; color: #111; background-color: #9cf; border: 1px solid #9cf;"
+            )
+        else:
+            self.preview_btn.setStyleSheet(
                 "padding: 6px 10px; color: #bbb;"
             )
 
@@ -4176,12 +4213,16 @@ class Editor(QWidget):
             )  
 
     def open_metatile_picker(self):
-        if hasattr(self, "picker_window") and self.picker_window.isVisible():
+        if (
+            hasattr(self, "picker_window")
+            and self.picker_window is not None
+            and self.picker_window.isVisible()
+        ):
             self.picker_window.close()
             self.update_picker_button_state()
             return
 
-        if not hasattr(self, "picker_window"):
+        if not hasattr(self, "picker_window") or self.picker_window is None:
             self.picker_window = MetatilePickerWindow(self)
 
         self.picker_window.picker.build()
@@ -4189,8 +4230,8 @@ class Editor(QWidget):
         self.picker_window.show()
         self.picker_window.raise_()
         self.picker_window.activateWindow()
-        self.update_picker_button_state()     
-
+        self.update_picker_button_state()
+        
     def update_selected_subtile_entry(self, tile_number=None, palette_group=None,
                                      priority=None, h_flip=None, v_flip=None):
         if not (0 <= self.selected_metatile < len(self.metatiles)):
@@ -4503,6 +4544,15 @@ class Editor(QWidget):
         self.update_status()
  
     def open_bg_preview(self):
+        if (
+            hasattr(self, "bg_preview_window")
+            and self.bg_preview_window is not None
+            and self.bg_preview_window.isVisible()
+        ):
+            self.bg_preview_window.close()
+            self.update_preview_button_state()
+            return
+
         has_next_map = (
             len(self.map_data_list) >= 2 and
             self.map_index < len(self.map_data_list) - 1
@@ -4518,26 +4568,25 @@ class Editor(QWidget):
             )
             return
 
-        # --- NEW: mark preview as active to block map editing ---
         self.bg_preview_active = True
+        self.update_preview_button_state()
 
         QApplication.setOverrideCursor(Qt.WaitCursor)
 
         try:
             QApplication.processEvents()
 
-            try:
+            if not hasattr(self, "bg_preview_window") or self.bg_preview_window is None:
                 self.bg_preview_window = BGPreviewWindow(self)
-            except RuntimeError:
-                return
 
             self.bg_preview_window.show()
             self.bg_preview_window.raise_()
             self.bg_preview_window.activateWindow()
+            self.update_preview_button_state()
 
         finally:
             QApplication.restoreOverrideCursor()
-
+            
     def toggle_hover_map_flip(self, axis):
         
         if self.editor_mode != "map":
