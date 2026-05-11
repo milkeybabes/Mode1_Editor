@@ -1,0 +1,16 @@
+palette=palettes/Green_Hill_Zone.pal
+tiles=tiles/Green_Hill_zone.sf4
+metatiles=metatiles/Green_Hill_zone_32x32.mtl
+metatile_size=32
+maps=maps/Green_Hill_Zone1_32x32.map,maps/Green_Hill_Zone_background_32x32.map,maps/Green_Hill_Zone2_32x32.map,maps/Green_Hill_Zone3_32x32.map
+width=48,32,33,48
+height=5,1,6,6
+map_direction=top_bottom
+preview_bg2_mode=project_map
+preview_bg2_map=maps/Green_Hill_Zone_background_32x32.map
+preview_bg2_scroll_x=0.5
+preview_bg2_scroll_y=0.25
+preview_bg2_repeat_x=fill
+preview_bg2_repeat_y=1
+preview_bg2_min_y=-224
+preview_bg1_min_y=-224

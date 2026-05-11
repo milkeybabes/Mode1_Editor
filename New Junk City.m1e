@@ -1,0 +1,11 @@
+palette=palettes/New_Junk_City.pal
+tiles=tiles/New_Junk_City.sf4
+metatiles=metatiles/New Junk City.mtl
+metatile_size=2
+maps=maps/New Junk City.map
+width=350
+height=56
+map_direction=top_bottom
+map_index_mask=0x0FFF
+map_h_flip_bit=14
+map_v_flip_bit=15

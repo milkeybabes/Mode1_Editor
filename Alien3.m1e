@@ -1,0 +1,6 @@
+palette=palettes/Alien3.pal
+tiles=tiles/Alien3.sf4
+metatiles=metatiles/Alien3.mtl
+maps=maps/Level1.map,maps/Level1_fg.map,maps/Level2.map,maps/Level2_fg.map,maps/Level3.map,maps/Level3_fg.map,maps/Level4.map,maps/Level4_fg.map,maps/Level5.map,maps/Level5_fg.map
+width=85,85,85,85,85,85,127,127,85,85
+height=57,57,64,64,64,64,56,56,64,64

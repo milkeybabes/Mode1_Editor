@@ -1,0 +1,8 @@
+palette=palettes/Rayman.pal
+tiles=tiles/Rayman.sf4
+metatiles=metatiles/Rayman.mtl
+metatile_size=2
+map=maps/Rayman_level1.map
+width=112
+height=34
+map_direction=top_bottom
